@@ -1,0 +1,180 @@
+<!doctype html>
+	<head>
+	  <meta charset="utf-8">
+	  <title>NEYBUR</title>
+	  <link rel="stylesheet" href="public/css/styles.css">
+	</head>
+		
+	<body>
+		<div class="container">
+			<canvas id = "three-canvas"></canvas>
+			<div class = "content">
+				<div class = "logo">
+					<img src="public/img/neybur_logo.svg">
+				</div>
+				<div class = "links">
+					<a href="https://www.youtube.com/channel/UCtL7FftgQaFNQkvQ71tkR6g" class = "youtube-link">LISTEN</a>
+				</div>
+			</div>
+		</div>
+		
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js" integrity="sha256-gSh8eotzb/CVvCREGPUNgIWuDnTYnZvVOQnRrP1eDjI=" crossorigin="anonymous"></script>
+		<script>
+		
+			//TODO: Create a struct to hold the per plane data (relative position, rotation speed)
+			
+			//src: https://discourse.threejs.org/t/functions-to-calculate-the-visible-width-height-at-a-given-z-depth-from-a-perspective-camera/269
+			var visibleHeightAtZDepth = function( depth, camera ) {
+			  // compensate for cameras not positioned at z=0
+			  const cameraOffset = camera.position.z;
+			  if ( depth < cameraOffset ) depth -= cameraOffset;
+			  else depth += cameraOffset;
+
+			  // vertical fov in radians
+			  const vFOV = camera.fov * Math.PI / 180; 
+
+			  // Math.abs to ensure the result is always positive
+			  return 2 * Math.tan( vFOV / 2 ) * Math.abs( depth );
+			};
+
+			var visibleWidthAtZDepth = function( depth, camera ) {
+			  const height = visibleHeightAtZDepth( depth, camera );
+			  return height * camera.aspect;
+			};
+			
+			//Takes relative x, y coordinates from -1 to +1 and maps them to visible x, y coordinates at depth.
+			//Asumes camera at (0,0, any)
+			var relativeCoordToVisible = function(x, y, depth, camera){
+				return [
+					(visibleWidthAtZDepth(depth, camera)/2)*x,
+					(visibleHeightAtZDepth(depth, camera)/2)*y,
+					depth
+				];
+			}
+			
+			var toVisibleCoords = function(relCoords){
+				return Array.from(relCoords, x => relativeCoordToVisible(x[0],x[1], x[2], camera));
+			}
+			
+			var my_canvas = document.getElementById('three-canvas');
+			
+			//Canvas size needs to be set to that computed by CSS
+			//TODO: This can be moved to resize handler.
+			//src: https://stackoverflow.com/questions/5034529/size-of-html5-canvas-via-css-versus-element-attributes
+			const compStyles = window.getComputedStyle(my_canvas);
+			my_canvas.width = compStyles.width.substr(0, compStyles.width.length - 2);
+			my_canvas.height = compStyles.height.substr(0, compStyles.height.length - 2);
+			
+			var scene = new THREE.Scene();
+			var camera = new THREE.PerspectiveCamera( 75, my_canvas.width/my_canvas.height, 0.1, 1000 );
+			
+			var renderer = new THREE.WebGLRenderer( { canvas: my_canvas, antialias: true } );
+			renderer.setSize( my_canvas.width, my_canvas.height );
+			renderer.setClearColor(new THREE.Color( 0xffffff ),1);
+			
+			camera.position.z = 5;
+			
+			//Randomly generated coords that look nice
+			const relCoords  = [
+				[0.6232,0.8707,-0], 
+				[-0.675,0.32235,-7], 
+				[-0.4765,-0.6494,-10], 
+				[0.874,-0.9614,2], 
+				[0.5333,0.12505,-20], 
+				[-0.5443,0.9534,-30], 
+				[-0.41295,-0.4214,-25], 
+				[0.27224,-0.6302,-5], 
+				[0.6025,0.7212,-12], 
+				[-0.34705,0.8825,-15], 
+				[-0.8612,-0.5301,-6], 
+				[0.1440329,-0.2675394,-6], 
+				[0.4504246,0.448845,-7], 
+				[-0.674529,0.1,-7], 
+				[-0.9,-0.0983364,-7], 
+				[0.6574,-0.52008,-7], 
+				[0.0823281,0.946054,-8], 
+				[-0.562097,0.417357,-8], 
+				[-0.4800656,-0.4737234,-8], 
+				[0.1854114,-0.315627,-8]			]
+			
+			/*const zCoords = Array.from(Array(5), (x, i) => -1 * (i+4))
+			
+			var relCoords = new Array();
+			
+			for(var i = 0; i < zCoords.length; i++){
+				relCoords.push([Math.random(), Math.random(), zCoords[i]]);
+				relCoords.push([-Math.random(), Math.random(), zCoords[i]]);
+				relCoords.push([-Math.random(), -Math.random(), zCoords[i]]);
+				relCoords.push([Math.random(), -Math.random(), zCoords[i]]);
+			}*/
+			
+			//Convert realitve coords to coords in 3d space
+			var coords = toVisibleCoords(relCoords);
+			
+			//TODO: imageutils is deprecated
+			const texture = THREE.ImageUtils.loadTexture("public/img/neybur_logo_outline_c.png");
+			
+			var planes = new Array();
+			for(var i = 0; i < coords.length; i++ ){
+				var geometry = new THREE.PlaneGeometry( 0.5, 1 );
+				var material = new THREE.MeshBasicMaterial( {map: texture, side: THREE.DoubleSide} );
+				material.transparent = true;
+				var plane = new THREE.Mesh( geometry, material );
+				
+				scene.add( plane );
+				plane.position.x = coords[i][0];
+				plane.position.y = coords[i][1];
+				plane.position.z = coords[i][2];
+				
+				plane.rotation.x = Math.random();
+				plane.rotation.y = Math.random();
+				plane.rotation.z = Math.random();
+				
+				//Add plane and rotation speed to planes array
+				planes.push([plane, (Math.random())]);
+			}
+			
+			
+			//TODO: This is incorrect if canvas size does not match Window size.
+			window.addEventListener( 'resize', onWindowResize, false );
+
+			function onWindowResize(){
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				
+				//Move elements to retain position relative to element size
+				//Update to match new positions
+				coords = toVisibleCoords(relCoords);
+				for(var i = 0; i < planes.length; i++){
+					planes[i][0].position.x = coords[i][0];
+					planes[i][0].position.y = coords[i][1];
+					planes[i][0].position.z = coords[i][2];
+				}
+			}
+			
+			//Setting dt to value that makes the anim start slowly.
+			var dt = 4.712;
+			
+			var animate = function () {
+				requestAnimationFrame( animate );
+				for(var i =0; i < planes.length; i++){
+					//rotate
+					planes[i][0].rotation.x += ((i%2 === 0)? -1 : 1)*planes[i][1]*0.005;
+					planes[i][0].rotation.y += ((i%2 === 0)? 1 : -1)*planes[i][1]*0.002;
+					
+					//breathe
+					planes[i][0].position.z += Math.cos(dt)*0.03;
+				}
+				
+				dt += 0.005;
+				renderer.render( scene, camera );
+			};
+
+			animate();	
+		</script>
+	</body>
+	
+</html>
